@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+
+import 'dart:html' as html if (dart.library.io) 'dummy_html.dart';
 
 void main() {
   runApp(const EsquitazosApp());
@@ -317,7 +320,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     await prefs.setString('lotesPorMes', jsonEncode(lotesPorMes));
   }
 
-  // 📦 EXPORTAR TODOS LOS DATOS A UN ARCHIVO JSON
+  // 📦 EXPORTAR TODOS LOS DATOS (COMPATIBLE ANDROID Y WEB/NETLIFY)
   Future<void> _exportarDatos() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -338,15 +341,25 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 
       String jsonString = jsonEncode(datosRespaldo);
 
-      final directory = await getTemporaryDirectory();
-      final path = '${directory.path}/esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json';
-      final file = File(path);
-      await file.writeAsString(jsonString);
+      if (kIsWeb) {
+        final bytes = utf8.encode(jsonString);
+        final blob = html.Blob([bytes]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        html.AnchorElement(href: url)
+          ..setAttribute('download', 'esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json')
+          ..click();
+        html.Url.revokeObjectUrl(url);
+      } else {
+        final directory = await getTemporaryDirectory();
+        final path = '${directory.path}/esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json';
+        final file = File(path);
+        await file.writeAsString(jsonString);
 
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
-      );
+        await Share.shareXFiles(
+          [XFile(path)],
+          text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1897,7 +1910,7 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
                                         child: InkWell(
                                           onTap: sePuedeEditar ? () => widget.onCambiarLote(fechaObj, sabor.id, fraccion) : () {
                                             ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('⚠️️ Día pasado bloqueado. Toca el icono de lápiz arriba para desbloquear.'), duration: Duration(seconds: 2)),
+                                              const SnackBar(content: Text('⚠ Día pasado bloqueado. Toca el icono de lápiz arriba para desbloquear.'), duration: Duration(seconds: 2)),
                                             );
                                           },
                                           child: Container(
