@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() {
   runApp(const EsquitazosApp());
@@ -313,6 +317,117 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     await prefs.setString('lotesPorMes', jsonEncode(lotesPorMes));
   }
 
+  // 📦 EXPORTAR TODOS LOS DATOS A UN ARCHIVO JSON
+  Future<void> _exportarDatos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Map<String, dynamic> datosRespaldo = {
+        'version_app': '1.0',
+        'fecha_respaldo': DateTime.now().toIso8601String(),
+        'mostrarTotalAcumulado': prefs.getBool('mostrarTotalAcumulado') ?? true,
+        'nivelTextoMostrador': prefs.getDouble('nivelTextoMostrador') ?? 3.0,
+        'nivelTextoTotal': prefs.getDouble('nivelTextoTotal') ?? 3.0,
+        'nivelTextoHistorial': prefs.getDouble('nivelTextoHistorial') ?? 3.0,
+        'saldoEfectivoEnMano': prefs.getDouble('saldoEfectivoEnMano') ?? 0.0,
+        'categoriasGastos': prefs.getString('categoriasGastos'),
+        'historialGastos': prefs.getString('historialGastos'),
+        'menuSabores': prefs.getString('menuSabores'),
+        'ventasPorMes': prefs.getString('ventasPorMes'),
+        'lotesPorMes': prefs.getString('lotesPorMes'),
+      };
+
+      String jsonString = jsonEncode(datosRespaldo);
+
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json';
+      final file = File(path);
+      await file.writeAsString(jsonString);
+
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al exportar: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
+  // 📥 IMPORTAR DATOS DESDE UN ARCHIVO JSON DE RESPALDO
+  Future<void> _importarDatos() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        File file = File(result.files.single.path!);
+        String jsonString = await file.readAsString();
+        Map<String, dynamic> datosRespaldo = jsonDecode(jsonString);
+
+        final prefs = await SharedPreferences.getInstance();
+
+        if (datosRespaldo.containsKey('mostrarTotalAcumulado')) {
+          await prefs.setBool('mostrarTotalAcumulado', datosRespaldo['mostrarTotalAcumulado']);
+        }
+        if (datosRespaldo.containsKey('nivelTextoMostrador')) {
+          await prefs.setDouble('nivelTextoMostrador', datosRespaldo['nivelTextoMostrador']);
+        }
+        if (datosRespaldo.containsKey('nivelTextoTotal')) {
+          await prefs.setDouble('nivelTextoTotal', datosRespaldo['nivelTextoTotal']);
+        }
+        if (datosRespaldo.containsKey('nivelTextoHistorial')) {
+          await prefs.setDouble('nivelTextoHistorial', datosRespaldo['nivelTextoHistorial']);
+        }
+        if (datosRespaldo.containsKey('saldoEfectivoEnMano')) {
+          await prefs.setDouble('saldoEfectivoEnMano', datosRespaldo['saldoEfectivoEnMano']);
+        }
+        if (datosRespaldo['categoriasGastos'] != null) {
+          await prefs.setString('categoriasGastos', datosRespaldo['categoriasGastos']);
+        }
+        if (datosRespaldo['historialGastos'] != null) {
+          await prefs.setString('historialGastos', datosRespaldo['historialGastos']);
+        }
+        if (datosRespaldo['menuSabores'] != null) {
+          await prefs.setString('menuSabores', datosRespaldo['menuSabores']);
+        }
+        if (datosRespaldo['ventasPorMes'] != null) {
+          await prefs.setString('ventasPorMes', datosRespaldo['ventasPorMes']);
+        }
+        if (datosRespaldo['lotesPorMes'] != null) {
+          await prefs.setString('lotesPorMes', datosRespaldo['lotesPorMes']);
+        }
+
+        await _cargarDatosDeDisco();
+
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: const Text('✅ ¡Respaldo Importado!', style: TextStyle(color: Colors.white)),
+            content: const Text('Tus ventas, gastos, sabores y configuración se han restaurado con éxito.', style: TextStyle(color: Colors.white70)),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan, foregroundColor: Colors.black),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('EXCELENTE', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al importar el archivo: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
   String _obtenerClaveMes(DateTime fecha) => "${fecha.year}_${fecha.month.toString().padLeft(2, '0')}";
   String _obtenerClaveDia(DateTime fecha) => "${fecha.year}_${fecha.month.toString().padLeft(2, '0')}_${fecha.day.toString().padLeft(2, '0')}";
 
@@ -522,6 +637,8 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
         },
         onGuardarSabor: _guardarSabor,
         onEliminarSabor: _eliminarSabor,
+        onExportar: _exportarDatos,
+        onImportar: _importarDatos,
       ),
     ];
 
@@ -1475,7 +1592,7 @@ class _BilleteraVistaState extends State<BilleteraVista> {
 }
 
 // -----------------------------------------------------------------------------
-// 3. BALANCE DIARIO (CON ORDEN INVERSO: HOY ARRIBA)
+// 3. BALANCE DIARIO
 // -----------------------------------------------------------------------------
 class HistorialPorDiaVista extends StatefulWidget {
   final Map<String, List<VentaRegistrada>> ventasPorMes;
@@ -1553,7 +1670,6 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
     ventasAgrupadas.putIfAbsent(hoyFormateado, () => []);
 
     final diasOrdenados = ventasAgrupadas.keys.toList();
-    // 🌟 ORDEN INVERSO: El día actual / más reciente queda hasta arriba
     diasOrdenados.sort((a, b) => b.compareTo(a));
 
     double fontSizeBase = 12.0 + (widget.nivelTextoHistorial * 2.0);
@@ -1781,7 +1897,7 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
                                         child: InkWell(
                                           onTap: sePuedeEditar ? () => widget.onCambiarLote(fechaObj, sabor.id, fraccion) : () {
                                             ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('⚠️ Día pasado bloqueado. Toca el icono de lápiz arriba para desbloquear.'), duration: Duration(seconds: 2)),
+                                              const SnackBar(content: Text('⚠️️ Día pasado bloqueado. Toca el icono de lápiz arriba para desbloquear.'), duration: Duration(seconds: 2)),
                                             );
                                           },
                                           child: Container(
@@ -1919,7 +2035,6 @@ class ResumenMesVista extends StatelessWidget {
     double ticketPromedio = totalTickets > 0 ? (ventaBrutaMes / totalTickets) : 0.0;
     int totalDiasLaborados = diasLaboradosSet.length;
 
-    // 🌟 CÁLCULO DEL GRAN TOTAL DE VASOS EQUIVALENTES DEL MES
     double granTotalVasosEquivalentesMes = 0.0;
     for (var sabor in menuSabores) {
       int totalMed = medianosPorSabor[sabor.nombre] ?? 0;
@@ -2116,7 +2231,6 @@ class ResumenMesVista extends StatelessWidget {
                         );
                       }),
                       const SizedBox(height: 12),
-                      // 🌟 TARJETA CON EL GRAN TOTAL DE VASOS EQUIVALENTES DEL MES HASTA ABAJO
                       Card(
                         color: const Color(0xFF0F172A),
                         shape: RoundedRectangleBorder(
@@ -2240,6 +2354,8 @@ class AjustesVista extends StatelessWidget {
   final ValueChanged<double> onCambiarNivelHistorial;
   final Function(SaborInfo) onGuardarSabor;
   final Function(String) onEliminarSabor;
+  final VoidCallback onExportar;
+  final VoidCallback onImportar;
 
   const AjustesVista({
     super.key,
@@ -2253,6 +2369,8 @@ class AjustesVista extends StatelessWidget {
     required this.onCambiarNivelHistorial,
     required this.onGuardarSabor,
     required this.onEliminarSabor,
+    required this.onExportar,
+    required this.onImportar,
   });
 
   void _abrirModalEditar(BuildContext context, SaborInfo? sabor) {
@@ -2310,6 +2428,46 @@ class AjustesVista extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const Text('💾 Respaldos y Seguridad:', style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 12),
+          Card(
+            color: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Text(
+                    'Exporta todos tus datos (ventas, gastos, sabores) a un archivo JSON o restáuralos cuando lo necesites.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12)),
+                          onPressed: onExportar,
+                          icon: const Icon(Icons.upload_file, size: 18),
+                          label: const Text('EXPORTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12)),
+                          onPressed: onImportar,
+                          icon: const Icon(Icons.download, size: 18),
+                          label: const Text('IMPORTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           const Text('🔤 Tamaños de Letra (6 Niveles):', style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
           Card(
