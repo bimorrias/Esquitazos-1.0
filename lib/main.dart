@@ -9,8 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'dart:html' as html if (dart.library.io) 'dummy_html.dart';
-
 void main() {
   runApp(const EsquitazosApp());
 }
@@ -320,7 +318,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     await prefs.setString('lotesPorMes', jsonEncode(lotesPorMes));
   }
 
-  // 📦 EXPORTAR TODOS LOS DATOS (COMPATIBLE ANDROID Y WEB/NETLIFY)
+  // 📦 EXPORTAR RESPALDO A ANDROID MEDIANTE SHARE_PLUS
   Future<void> _exportarDatos() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -340,26 +338,15 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       };
 
       String jsonString = jsonEncode(datosRespaldo);
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json';
+      final file = File(path);
+      await file.writeAsString(jsonString);
 
-      if (kIsWeb) {
-        final bytes = utf8.encode(jsonString);
-        final blob = html.Blob([bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        html.AnchorElement(href: url)
-          ..setAttribute('download', 'esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json')
-          ..click();
-        html.Url.revokeObjectUrl(url);
-      } else {
-        final directory = await getTemporaryDirectory();
-        final path = '${directory.path}/esquitazos_respaldo_${DateTime.now().millisecondsSinceEpoch}.json';
-        final file = File(path);
-        await file.writeAsString(jsonString);
-
-        await Share.shareXFiles(
-          [XFile(path)],
-          text: 'Respaldo de datos de Esquitazos 1.0 🌽',
-        );
-      }
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
