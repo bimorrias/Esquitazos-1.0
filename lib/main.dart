@@ -318,7 +318,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     await prefs.setString('lotesPorMes', jsonEncode(lotesPorMes));
   }
 
-  // 📦 EXPORTAR RESPALDO A ANDROID MEDIANTE SHARE_PLUS
+  // 📦 EXPORTAR RESPALDO A ANDROID MEDIANTE SHARE_PLUS (Sintaxis moderna compatible con v13+)
   Future<void> _exportarDatos() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -343,9 +343,12 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       final file = File(path);
       await file.writeAsString(jsonString);
 
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+      // USO MODERNO DE SHARE_PLUS (v13+)
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+          files: [XFile(path)],
+        ),
       );
     } catch (e) {
       if (!mounted) return;
