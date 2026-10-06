@@ -318,7 +318,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     await prefs.setString('lotesPorMes', jsonEncode(lotesPorMes));
   }
 
-  // 📦 EXPORTAR RESPALDO A ANDROID MEDIANTE SHARE_PLUS
+  // 📦 EXPORTAR RESPALDO A ANDROID MEDIANTE SHARE_PLUS (v12)
   Future<void> _exportarDatos() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -343,11 +343,9 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       final file = File(path);
       await file.writeAsString(jsonString);
 
-      await SharePlus.instance.share(
-        ShareParams(
-          text: 'Respaldo de datos de Esquitazos 1.0 🌽',
-          files: [XFile(path)],
-        ),
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
       );
     } catch (e) {
       if (!mounted) return;
@@ -357,7 +355,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     }
   }
 
-  // 📥 IMPORTAR DATOS DESDE UN ARCHIVO JSON DE RESPALDO (CORREGIDO PARA EVITAR CONFLICTOS DE TIPO)
+  // 📥 IMPORTAR DATOS DESDE UN ARCHIVO JSON DE RESPALDO
   Future<void> _importarDatos() async {
     try {
       var result = await FilePicker.platform.pickFiles(
@@ -2635,7 +2633,7 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
 
 // -----------------------------------------------------------------------------
 // BOTÓN POP
-// -----------------------------
+// -----------------------------------------------------------------------------
 class _BotonPop extends StatefulWidget {
   final String label;
   final double precio;
