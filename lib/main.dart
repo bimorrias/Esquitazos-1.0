@@ -372,20 +372,20 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 
         final prefs = await SharedPreferences.getInstance();
 
-        if (datosRespaldo.containsKey('mostrarTotalAcumulado')) {
+       if (datosRespaldo.containsKey('mostrarTotalAcumulado')) {
           await prefs.setBool('mostrarTotalAcumulado', datosRespaldo['mostrarTotalAcumulado']);
         }
-        if (datosRespaldo.containsKey('nivelTextoMostrador')) {
-          await prefs.setDouble('nivelTextoMostrador', datosRespaldo['nivelTextoMostrador']);
+        if (datosRespaldo['nivelTextoMostrador'] != null) {
+          await prefs.setDouble('nivelTextoMostrador', (datosRespaldo['nivelTextoMostrador'] as num).toDouble());
         }
-        if (datosRespaldo.containsKey('nivelTextoTotal')) {
-          await prefs.setDouble('nivelTextoTotal', datosRespaldo['nivelTextoTotal']);
+        if (datosRespaldo['nivelTextoTotal'] != null) {
+          await prefs.setDouble('nivelTextoTotal', (datosRespaldo['nivelTextoTotal'] as num).toDouble());
         }
-        if (datosRespaldo.containsKey('nivelTextoHistorial')) {
-          await prefs.setDouble('nivelTextoHistorial', datosRespaldo['nivelTextoHistorial']);
+        if (datosRespaldo['nivelTextoHistorial'] != null) {
+          await prefs.setDouble('nivelTextoHistorial', (datosRespaldo['nivelTextoHistorial'] as num).toDouble());
         }
-        if (datosRespaldo.containsKey('saldoEfectivoEnMano')) {
-          await prefs.setDouble('saldoEfectivoEnMano', datosRespaldo['saldoEfectivoEnMano']);
+        if (datosRespaldo['saldoEfectivoEnMano'] != null) {
+          await prefs.setDouble('saldoEfectivoEnMano', (datosRespaldo['saldoEfectivoEnMano'] as num).toDouble());
         }
         if (datosRespaldo['categoriasGastos'] != null) {
           await prefs.setString('categoriasGastos', datosRespaldo['categoriasGastos']);
