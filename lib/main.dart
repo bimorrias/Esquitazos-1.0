@@ -1596,6 +1596,9 @@ class _BilleteraVistaState extends State<BilleteraVista> {
 // -----------------------------------------------------------------------------
 // 3. BALANCE DIARIO
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// 3. BALANCE DIARIO
+// -----------------------------------------------------------------------------
 class HistorialPorDiaVista extends StatefulWidget {
   final Map<String, List<VentaRegistrada>> ventasPorMes;
   final List<SaborInfo> menuSabores;
@@ -1664,13 +1667,14 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
 
     Map<String, List<VentaRegistrada>> ventasAgrupadas = {};
     for (var venta in ventasMes) {
-      String claveDia = Fechas.formatoBalanceDia(venta.fechaHora);
+      String claveDia = _obtenerClaveDia(venta.fechaHora);
       ventasAgrupadas.putIfAbsent(claveDia, () => []).add(venta);
     }
 
-    String hoyFormateado = Fechas.formatoBalanceDia(ahora);
-    ventasAgrupadas.putIfAbsent(hoyFormateado, () => []);
+    String hoyClave = _obtenerClaveDia(ahora);
+    ventasAgrupadas.putIfAbsent(hoyClave, () => []);
 
+    // Ordenamos las claves de fecha (YYYY_MM_DD) de forma descendente estricta
     final diasOrdenados = ventasAgrupadas.keys.toList();
     diasOrdenados.sort((a, b) => b.compareTo(a));
 
@@ -1692,15 +1696,21 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
         padding: const EdgeInsets.all(16),
         itemCount: diasOrdenados.length,
         itemBuilder: (context, index) {
-          String diaFormateadoStr = diasOrdenados[index];
-          List<VentaRegistrada> ventasDelDia = ventasAgrupadas[diaFormateadoStr]!;
+          String claveDiaStr = diasOrdenados[index];
+          List<VentaRegistrada> ventasDelDia = ventasAgrupadas[claveDiaStr]!;
           
           DateTime fechaObj = ventasDelDia.isNotEmpty 
               ? ventasDelDia.first.fechaHora 
-              : ahora;
+              : DateTime(
+                  int.parse(claveDiaStr.split('_')[0]),
+                  int.parse(claveDiaStr.split('_')[1]),
+                  int.parse(claveDiaStr.split('_')[2]),
+                );
+
+          String diaFormateadoStr = Fechas.formatoBalanceDia(fechaObj);
 
           bool esHoy = Fechas.diaMesAnio(fechaObj) == Fechas.diaMesAnio(ahora);
-          bool estaDesbloqueado = _diasDesbloqueados.contains(diaFormateadoStr);
+          bool estaDesbloqueado = _diasDesbloqueados.contains(claveDiaStr);
           bool sePuedeEditar = esHoy || estaDesbloqueado;
 
           double ventaTotalBruta = ventasDelDia.fold(0.0, (sum, item) => sum + item.total);
@@ -1779,9 +1789,9 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
                       onPressed: () {
                         setState(() {
                           if (estaDesbloqueado) {
-                            _diasDesbloqueados.remove(diaFormateadoStr);
+                            _diasDesbloqueados.remove(claveDiaStr);
                           } else {
-                            _diasDesbloqueados.add(diaFormateadoStr);
+                            _diasDesbloqueados.add(claveDiaStr);
                           }
                         });
                       },
