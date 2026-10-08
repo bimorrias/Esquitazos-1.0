@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -343,9 +342,12 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       final file = File(path);
       await file.writeAsString(jsonString);
 
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(path)],
+          text: 'Respaldo de datos de Esquitazos 1.0 🌽',
+        )
+        
       );
     } catch (e) {
       if (!mounted) return;
@@ -358,13 +360,13 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
   // 📥 IMPORTAR DATOS DESDE UN ARCHIVO JSON DE RESPALDO
   Future<void> _importarDatos() async {
     try {
-      var result = await FilePicker.platform.pickFiles(
+      final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
 
-      if (result != null && result.files.single.path != null) {
-        File file = File(result.files.single.path!);
+      if (files.isNotEmpty && files.single.path != null) {
+        File file = File(files.single.path!);
         String jsonString = await file.readAsString();
         Map<String, dynamic> datosRespaldo = jsonDecode(jsonString);
 
