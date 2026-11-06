@@ -109,6 +109,7 @@ class SaborInfo {
   bool llevaQuesos;
   bool llevaLimon;
   bool llevaHuesito;
+  List<int> diasVenta;
 
   SaborInfo({
     required this.id,
@@ -123,6 +124,7 @@ class SaborInfo {
     this.llevaQuesos = false,
     this.llevaLimon = true,
     this.llevaHuesito = false,
+    this.diasVenta = const [1, 2, 3, 4, 5, 6, 7],
   });
 
   Map<String, dynamic> toJson() => {
@@ -138,23 +140,40 @@ class SaborInfo {
     'llevaQuesos': llevaQuesos,
     'llevaLimon': llevaLimon,
     'llevaHuesito': llevaHuesito,
+    'diasVenta': diasVenta,
   };
 
-  factory SaborInfo.fromJson(Map<String, dynamic> json) => SaborInfo(
-    id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-    nombre: json['nombre'],
-    emoji: json['emoji'],
-    color: Color((json['color'] as num).toInt()),
-    precioMediano: (json['precioMediano'] as num).toDouble(),
-    precioGrande: (json['precioGrande'] as num).toDouble(),
-    costoLoteCompleto: (json['costoLoteCompleto'] as num?)?.toDouble() ?? 0.0,
-    costoInsumosMediano:
-        (json['costoInsumosMediano'] as num?)?.toDouble() ?? 0.0,
-    costoInsumosGrande: (json['costoInsumosGrande'] as num?)?.toDouble() ?? 0.0,
-    llevaQuesos: json['llevaQuesos'] ?? false,
-    llevaLimon: json['llevaLimon'] ?? true,
-    llevaHuesito: json['llevaHuesito'] ?? false,
-  );
+  factory SaborInfo.fromJson(Map<String, dynamic> json) {
+    final nombreNormalizado = '${json['nombre'] ?? ''}'
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u');
+    final diasGuardados = json['diasVenta'];
+    return SaborInfo(
+      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      nombre: json['nombre'],
+      emoji: json['emoji'],
+      color: Color((json['color'] as num).toInt()),
+      precioMediano: (json['precioMediano'] as num).toDouble(),
+      precioGrande: (json['precioGrande'] as num).toDouble(),
+      costoLoteCompleto: (json['costoLoteCompleto'] as num?)?.toDouble() ?? 0.0,
+      costoInsumosMediano:
+          (json['costoInsumosMediano'] as num?)?.toDouble() ?? 0.0,
+      costoInsumosGrande:
+          (json['costoInsumosGrande'] as num?)?.toDouble() ?? 0.0,
+      llevaQuesos: json['llevaQuesos'] ?? false,
+      llevaLimon: json['llevaLimon'] ?? true,
+      llevaHuesito: json['llevaHuesito'] ?? false,
+      diasVenta: diasGuardados is List
+          ? diasGuardados.map((e) => (e as num).toInt()).toList()
+          : (nombreNormalizado.contains('tuetano')
+                ? const [5, 6, 7]
+                : const [1, 2, 3, 4, 5, 6, 7]),
+    );
+  }
 }
 
 class VentaRegistrada {
@@ -164,6 +183,7 @@ class VentaRegistrada {
   final double total;
   final String tipoVenta;
   final double envioAbsorbido;
+  final String? pedidoId;
 
   VentaRegistrada({
     required this.numeroVentaDia,
@@ -172,6 +192,7 @@ class VentaRegistrada {
     required this.total,
     this.tipoVenta = 'puesto',
     this.envioAbsorbido = 0.0,
+    this.pedidoId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -181,6 +202,7 @@ class VentaRegistrada {
     'total': total,
     'tipoVenta': tipoVenta,
     'envioAbsorbido': envioAbsorbido,
+    'pedidoId': pedidoId,
   };
 
   factory VentaRegistrada.fromJson(Map<String, dynamic> json) =>
@@ -191,6 +213,7 @@ class VentaRegistrada {
         total: (json['total'] as num).toDouble(),
         tipoVenta: json['tipoVenta'] ?? 'puesto',
         envioAbsorbido: (json['envioAbsorbido'] as num?)?.toDouble() ?? 0.0,
+        pedidoId: json['pedidoId'] as String?,
       );
 }
 
@@ -383,6 +406,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
   int _indicePestana = 0;
   bool _cargandoDatos = true;
   bool _mostrarTotalAcumulado = true;
+  bool mostrarBilletera = false;
 
   double nivelTextoMostrador = 3.0;
   double nivelTextoTotal = 3.0;
@@ -436,6 +460,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 
     setState(() {
       _mostrarTotalAcumulado = prefs.getBool('mostrarTotalAcumulado') ?? true;
+      mostrarBilletera = prefs.getBool('mostrarBilletera') ?? false;
       nivelTextoMostrador = prefs.getDouble('nivelTextoMostrador') ?? 3.0;
       nivelTextoTotal = prefs.getDouble('nivelTextoTotal') ?? 3.0;
       nivelTextoHistorial = prefs.getDouble('nivelTextoHistorial') ?? 3.0;
@@ -510,6 +535,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
             llevaQuesos: false,
             llevaLimon: true,
             llevaHuesito: false,
+            diasVenta: const [5, 6, 7],
           ),
         ];
         _guardarDatosEnDisco();
@@ -566,6 +592,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
   Future<void> _guardarDatosEnDisco() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('mostrarTotalAcumulado', _mostrarTotalAcumulado);
+    await prefs.setBool('mostrarBilletera', mostrarBilletera);
     await prefs.setDouble('nivelTextoMostrador', nivelTextoMostrador);
     await prefs.setDouble('nivelTextoTotal', nivelTextoTotal);
     await prefs.setDouble('nivelTextoHistorial', nivelTextoHistorial);
@@ -602,6 +629,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
         'version_app': '1.0',
         'fecha_respaldo': DateTime.now().toIso8601String(),
         'mostrarTotalAcumulado': prefs.getBool('mostrarTotalAcumulado') ?? true,
+        'mostrarBilletera': prefs.getBool('mostrarBilletera') ?? false,
         'nivelTextoMostrador': prefs.getDouble('nivelTextoMostrador') ?? 3.0,
         'nivelTextoTotal': prefs.getDouble('nivelTextoTotal') ?? 3.0,
         'nivelTextoHistorial': prefs.getDouble('nivelTextoHistorial') ?? 3.0,
@@ -662,6 +690,12 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
           await prefs.setBool(
             'mostrarTotalAcumulado',
             datosRespaldo['mostrarTotalAcumulado'],
+          );
+        }
+        if (datosRespaldo['mostrarBilletera'] != null) {
+          await prefs.setBool(
+            'mostrarBilletera',
+            datosRespaldo['mostrarBilletera'],
           );
         }
         if (datosRespaldo['nivelTextoMostrador'] != null) {
@@ -792,6 +826,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     double total, {
     String tipoVenta = 'puesto',
     double envioAbsorbido = 0.0,
+    String? pedidoId,
   }) {
     DateTime ahora = DateTime.now();
     String claveMes = _obtenerClaveMes(ahora);
@@ -819,6 +854,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
           total: total,
           tipoVenta: tipoVenta,
           envioAbsorbido: envioAbsorbido,
+          pedidoId: pedidoId,
         ),
       );
       saldoEfectivoEnMano += total;
@@ -977,6 +1013,43 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     _guardarDatosEnDisco();
   }
 
+  void _borrarPedidoDomicilio(PedidoDomicilio pedido) {
+    setState(() {
+      pedidosDomicilio.removeWhere((p) => p.id == pedido.id);
+      if (pedido.estado == 'En camino') {
+        VentaRegistrada? ventaVinculada;
+        for (final ventas in ventasPorMes.values) {
+          ventaVinculada = ventas
+              .where((v) => v.pedidoId == pedido.id)
+              .firstOrNull;
+          if (ventaVinculada != null) break;
+        }
+        if (ventaVinculada == null) {
+          final candidatas = ventasPorMes.values
+              .expand((ventas) => ventas)
+              .where(
+                (v) =>
+                    v.tipoVenta == 'domicilio' &&
+                    v.pedidoId == null &&
+                    (v.total - pedido.total).abs() < 0.01 &&
+                    jsonEncode(v.items) == jsonEncode(pedido.items),
+              )
+              .toList();
+          if (candidatas.length == 1) ventaVinculada = candidatas.single;
+        }
+        if (ventaVinculada != null) {
+          for (final ventas in ventasPorMes.values) {
+            if (ventas.remove(ventaVinculada)) {
+              saldoEfectivoEnMano -= ventaVinculada.total;
+              break;
+            }
+          }
+        }
+      }
+    });
+    _guardarDatosEnDisco();
+  }
+
   void _marcarPedidoEnCamino(PedidoDomicilio pedido) {
     if (pedido.estado == 'En camino') return;
     final items = pedido.items
@@ -993,6 +1066,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       pedido.total,
       tipoVenta: 'domicilio',
       envioAbsorbido: pedido.envioAbsorbido,
+      pedidoId: pedido.id,
     );
     _guardarDatosEnDisco();
   }
@@ -1008,97 +1082,143 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     String claveMesActual = _obtenerClaveMes(DateTime.now());
     List<VentaRegistrada> ventasMesActual = ventasPorMes[claveMesActual] ?? [];
 
-    final paginas = [
-      CajaRapidaVista(
-        menuSabores: menuSabores,
-        historialVentasMes: ventasMesActual,
-        nivelTextoMostrador: nivelTextoMostrador,
-        nivelTextoTotal: nivelTextoTotal,
-        onVentaCompletada: (items, total) => _registrarNuevaVenta(items, total),
-        onEliminarVenta: _eliminarVenta,
+    final paginaBalance = HistorialPorDiaVista(
+      ventasPorMes: ventasPorMes,
+      menuSabores: menuSabores,
+      lotesPorMes: lotesPorMes,
+      nivelTextoHistorial: nivelTextoHistorial,
+      mostrarTotalAcumulado: _mostrarTotalAcumulado,
+      onToggleOjito: _toggleOjito,
+      onEliminarVenta: _eliminarVenta,
+      onCambiarLote: _cambiarLoteSabor,
+      onAbrirSimulador: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProduccionVista(menuSabores: menuSabores),
+        ),
       ),
-      BilleteraVista(
-        saldoEfectivoEnMano: saldoEfectivoEnMano,
-        historialGastos: historialGastos,
-        categoriasGastos: categoriasGastos,
-        mostrarTotalAcumulado: _mostrarTotalAcumulado,
-        onRegistrarGasto: _registrarGasto,
-        onEditarGasto: _editarGasto,
-        onEliminarGasto: _eliminarGasto,
-        onActualizarSaldoManual: _actualizarSaldoManual,
-        onAgregarCategoria: _agregarCategoria,
+    );
+    final paginaResumen = ResumenMesVista(
+      ventasPorMes: ventasPorMes,
+      menuSabores: menuSabores,
+      lotesPorMes: lotesPorMes,
+      mesVisualizado: mesVisualizadoResumen,
+      mostrarTotalAcumulado: _mostrarTotalAcumulado,
+      onCambiarMes: _cambiarMesResumen,
+      historialGastos: historialGastos,
+    );
+    final paginaBilletera = BilleteraVista(
+      saldoEfectivoEnMano: saldoEfectivoEnMano,
+      historialGastos: historialGastos,
+      categoriasGastos: categoriasGastos,
+      mostrarTotalAcumulado: _mostrarTotalAcumulado,
+      onRegistrarGasto: _registrarGasto,
+      onEditarGasto: _editarGasto,
+      onEliminarGasto: _eliminarGasto,
+      onActualizarSaldoManual: _actualizarSaldoManual,
+      onAgregarCategoria: _agregarCategoria,
+    );
+    final paginaAjustes = AjustesVista(
+      menuSabores: menuSabores,
+      paletaColores: paletaColoresDisponibles,
+      nivelTextoMostrador: nivelTextoMostrador,
+      nivelTextoTotal: nivelTextoTotal,
+      nivelTextoHistorial: nivelTextoHistorial,
+      costoEnvioDefault: costoEnvioDefault,
+      telefonoRepartidor: telefonoRepartidor,
+      plantillasMensajes: plantillasMensajes,
+      mostrarBilletera: mostrarBilletera,
+      onCambiarMostrarBilletera: (v) {
+        setState(() {
+          final estabaEnAjustes = _indicePestana == (mostrarBilletera ? 4 : 3);
+          mostrarBilletera = v;
+          if (estabaEnAjustes) _indicePestana = v ? 4 : 3;
+        });
+        _guardarDatosEnDisco();
+      },
+      onGuardarPlantillas: (nuevas) {
+        setState(
+          () => plantillasMensajes = {
+            ...plantillasDomicilioPredeterminadas,
+            ...nuevas,
+          },
+        );
+        _guardarDatosEnDisco();
+      },
+      onCambiarNivelMostrador: (v) {
+        setState(() => nivelTextoMostrador = v);
+        _guardarDatosEnDisco();
+      },
+      onCambiarNivelTotal: (v) {
+        setState(() => nivelTextoTotal = v);
+        _guardarDatosEnDisco();
+      },
+      onCambiarNivelHistorial: (v) {
+        setState(() => nivelTextoHistorial = v);
+        _guardarDatosEnDisco();
+      },
+      onCambiarCostoEnvio: (v) {
+        setState(() => costoEnvioDefault = v);
+        _guardarDatosEnDisco();
+      },
+      onCambiarTelefonoRepartidor: (v) {
+        setState(() => telefonoRepartidor = v);
+        _guardarDatosEnDisco();
+      },
+      onGuardarSabor: _guardarSabor,
+      onEliminarSabor: _eliminarSabor,
+      onExportar: _exportarDatos,
+      onImportar: _importarDatos,
+    );
+
+    final paginas = <Widget>[
+      CajaYDomicilioVista(
+        puesto: CajaRapidaVista(
+          menuSabores: menuSabores,
+          historialVentasMes: ventasMesActual,
+          nivelTextoMostrador: nivelTextoMostrador,
+          nivelTextoTotal: nivelTextoTotal,
+          onVentaCompletada: (items, total) =>
+              _registrarNuevaVenta(items, total),
+          onEliminarVenta: _eliminarVenta,
+        ),
+        domicilio: PedidosDomicilioVista(
+          menuSabores: menuSabores,
+          clientes: clientesDomicilio,
+          pedidos: pedidosDomicilio,
+          telefonoRepartidor: telefonoRepartidor,
+          costoEnvioDefault: costoEnvioDefault,
+          plantillasMensajes: plantillasMensajes,
+          onGuardarPedido: _guardarPedidoDomicilio,
+          onMarcarEnCamino: _marcarPedidoEnCamino,
+          onBorrarPedido: _borrarPedidoDomicilio,
+        ),
       ),
-      HistorialPorDiaVista(
-        ventasPorMes: ventasPorMes,
-        menuSabores: menuSabores,
-        lotesPorMes: lotesPorMes,
-        nivelTextoHistorial: nivelTextoHistorial,
-        mostrarTotalAcumulado: _mostrarTotalAcumulado,
-        onToggleOjito: _toggleOjito,
-        onEliminarVenta: _eliminarVenta,
-        onCambiarLote: _cambiarLoteSabor,
+      paginaBalance,
+      paginaResumen,
+      if (mostrarBilletera) paginaBilletera,
+      paginaAjustes,
+    ];
+    final navItems = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.point_of_sale),
+        label: 'Caja',
       ),
-      ResumenMesVista(
-        ventasPorMes: ventasPorMes,
-        menuSabores: menuSabores,
-        lotesPorMes: lotesPorMes,
-        mesVisualizado: mesVisualizadoResumen,
-        mostrarTotalAcumulado: _mostrarTotalAcumulado,
-        onCambiarMes: _cambiarMesResumen,
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.analytics),
+        label: 'Balance Día',
       ),
-      PedidosDomicilioVista(
-        menuSabores: menuSabores,
-        clientes: clientesDomicilio,
-        pedidos: pedidosDomicilio,
-        telefonoRepartidor: telefonoRepartidor,
-        costoEnvioDefault: costoEnvioDefault,
-        plantillasMensajes: plantillasMensajes,
-        onGuardarPedido: _guardarPedidoDomicilio,
-        onMarcarEnCamino: _marcarPedidoEnCamino,
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.pie_chart),
+        label: 'Resumen Mes',
       ),
-      ProduccionVista(menuSabores: menuSabores),
-      AjustesVista(
-        menuSabores: menuSabores,
-        paletaColores: paletaColoresDisponibles,
-        nivelTextoMostrador: nivelTextoMostrador,
-        nivelTextoTotal: nivelTextoTotal,
-        nivelTextoHistorial: nivelTextoHistorial,
-        costoEnvioDefault: costoEnvioDefault,
-        telefonoRepartidor: telefonoRepartidor,
-        plantillasMensajes: plantillasMensajes,
-        onGuardarPlantillas: (nuevas) {
-          setState(
-            () => plantillasMensajes = {
-              ...plantillasDomicilioPredeterminadas,
-              ...nuevas,
-            },
-          );
-          _guardarDatosEnDisco();
-        },
-        onCambiarNivelMostrador: (v) {
-          setState(() => nivelTextoMostrador = v);
-          _guardarDatosEnDisco();
-        },
-        onCambiarNivelTotal: (v) {
-          setState(() => nivelTextoTotal = v);
-          _guardarDatosEnDisco();
-        },
-        onCambiarNivelHistorial: (v) {
-          setState(() => nivelTextoHistorial = v);
-          _guardarDatosEnDisco();
-        },
-        onCambiarCostoEnvio: (v) {
-          setState(() => costoEnvioDefault = v);
-          _guardarDatosEnDisco();
-        },
-        onCambiarTelefonoRepartidor: (v) {
-          setState(() => telefonoRepartidor = v);
-          _guardarDatosEnDisco();
-        },
-        onGuardarSabor: _guardarSabor,
-        onEliminarSabor: _eliminarSabor,
-        onExportar: _exportarDatos,
-        onImportar: _importarDatos,
+      if (mostrarBilletera)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.account_balance_wallet),
+          label: 'Billetera',
+        ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.settings),
+        label: 'Ajustes',
       ),
     ];
 
@@ -1118,33 +1238,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
           fontSize: 11,
         ),
         unselectedLabelStyle: const TextStyle(fontSize: 10),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'Caja',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet),
-            label: 'Billetera',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.analytics),
-            label: 'Balance Día',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.pie_chart),
-            label: 'Resumen Mes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.delivery_dining),
-            label: 'Domicilio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calculate),
-            label: 'Simulador',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
-        ],
+        items: navItems,
       ),
     );
   }
@@ -1153,6 +1247,34 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 // -----------------------------------------------------------------------------
 // 1. CAJA RÁPIDA
 // -----------------------------------------------------------------------------
+class CajaYDomicilioVista extends StatelessWidget {
+  final Widget puesto;
+  final Widget domicilio;
+  const CajaYDomicilioVista({
+    super.key,
+    required this.puesto,
+    required this.domicilio,
+  });
+
+  @override
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('🌽 Caja'),
+        backgroundColor: const Color(0xFF1E293B),
+        bottom: const TabBar(
+          tabs: [
+            Tab(icon: Icon(Icons.storefront), text: 'Puesto'),
+            Tab(icon: Icon(Icons.delivery_dining), text: 'Domicilio'),
+          ],
+        ),
+      ),
+      body: TabBarView(children: [puesto, domicilio]),
+    ),
+  );
+}
+
 class CajaRapidaVista extends StatefulWidget {
   final List<SaborInfo> menuSabores;
   final List<VentaRegistrada> historialVentasMes;
@@ -1508,80 +1630,101 @@ class _CajaRapidaVistaState extends State<CajaRapidaVista> {
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: widget.menuSabores.length,
-                itemBuilder: (context, index) {
-                  final sabor = widget.menuSabores[index];
-                  return Card(
-                    color: const Color(0xFF1E293B),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final columnas = constraints.maxWidth >= 600 ? 3 : 2;
+                  final filas = (widget.menuSabores.length / columnas)
+                      .ceil()
+                      .clamp(1, 999);
+                  final altoNatural = (constraints.maxHeight - 8) / filas;
+                  final altoCelda = altoNatural.clamp(44.0, 110.0).toDouble();
+                  return GridView.builder(
+                    physics: altoNatural < 55
+                        ? const ClampingScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(4),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columnas,
+                      mainAxisExtent: altoCelda,
+                      crossAxisSpacing: 5,
+                      mainAxisSpacing: 5,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                    itemCount: widget.menuSabores.length,
+                    itemBuilder: (context, index) {
+                      final sabor = widget.menuSabores[index];
+                      return Card(
+                        color: const Color(0xFF1E293B),
+                        margin: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: Column(
                             children: [
                               Text(
-                                sabor.emoji,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                sabor.nombre,
+                                '${sabor.emoji} ${sabor.nombre}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
+                              const SizedBox(height: 3),
                               Expanded(
-                                child: _BotonPop(
-                                  label: '${sabor.emoji} MEDIANO',
-                                  precio: sabor.precioMediano,
-                                  color: sabor.color,
-                                  fontSizeLabel: fontBoton,
-                                  fontSizePrecio: fontPrecio,
-                                  onTap: () => _agregarProducto(
-                                    sabor.id,
-                                    sabor.emoji,
-                                    sabor.nombre,
-                                    'Mediano',
-                                    sabor.precioMediano,
-                                  ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _BotonPop(
+                                        label: 'MED',
+                                        precio: sabor.precioMediano,
+                                        color: sabor.color,
+                                        fontSizeLabel: fontBoton
+                                            .clamp(9, 12)
+                                            .toDouble(),
+                                        fontSizePrecio: fontPrecio
+                                            .clamp(10, 14)
+                                            .toDouble(),
+                                        onTap: () => _agregarProducto(
+                                          sabor.id,
+                                          sabor.emoji,
+                                          sabor.nombre,
+                                          'Mediano',
+                                          sabor.precioMediano,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: _BotonPop(
+                                        label: 'GDE',
+                                        precio: sabor.precioGrande,
+                                        color: sabor.color,
+                                        fontSizeLabel: fontBoton
+                                            .clamp(9, 12)
+                                            .toDouble(),
+                                        fontSizePrecio: fontPrecio
+                                            .clamp(10, 14)
+                                            .toDouble(),
+                                        onTap: () => _agregarProducto(
+                                          sabor.id,
+                                          sabor.emoji,
+                                          sabor.nombre,
+                                          'Grande',
+                                          sabor.precioGrande,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _BotonPop(
-                                  label: '${sabor.emoji} GRANDE',
-                                  precio: sabor.precioGrande,
-                                  color: sabor.color,
-                                  fontSizeLabel: fontBoton,
-                                  fontSizePrecio: fontPrecio,
-                                  onTap: () => _agregarProducto(
-                                    sabor.id,
-                                    sabor.emoji,
-                                    sabor.nombre,
-                                    'Grande',
-                                    sabor.precioGrande,
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -2506,6 +2649,7 @@ class HistorialPorDiaVista extends StatefulWidget {
   final VoidCallback onToggleOjito;
   final Function(DateTime, VentaRegistrada) onEliminarVenta;
   final Function(DateTime, String, double) onCambiarLote;
+  final VoidCallback onAbrirSimulador;
 
   const HistorialPorDiaVista({
     super.key,
@@ -2517,6 +2661,7 @@ class HistorialPorDiaVista extends StatefulWidget {
     required this.onToggleOjito,
     required this.onEliminarVenta,
     required this.onCambiarLote,
+    required this.onAbrirSimulador,
   });
 
   @override
@@ -2593,6 +2738,10 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
       ventasAgrupadas.putIfAbsent(claveDia, () => []).add(venta);
     }
 
+    for (final claveDia in (widget.lotesPorMes[claveMesActual] ?? {}).keys) {
+      ventasAgrupadas.putIfAbsent(claveDia, () => []);
+    }
+
     String hoyClave = _obtenerClaveDia(ahora);
     ventasAgrupadas.putIfAbsent(hoyClave, () => []);
 
@@ -2610,6 +2759,11 @@ class _HistorialPorDiaVistaState extends State<HistorialPorDiaVista> {
         ),
         backgroundColor: const Color(0xFF1E293B),
         actions: [
+          IconButton(
+            tooltip: 'Simulador de evento',
+            icon: const Icon(Icons.calculate, color: Colors.cyanAccent),
+            onPressed: widget.onAbrirSimulador,
+          ),
           IconButton(
             icon: Icon(
               widget.mostrarTotalAcumulado
@@ -3085,6 +3239,7 @@ class ResumenMesVista extends StatelessWidget {
   final DateTime mesVisualizado;
   final bool mostrarTotalAcumulado;
   final Function(int) onCambiarMes;
+  final List<GastoRegistrado> historialGastos;
 
   const ResumenMesVista({
     super.key,
@@ -3094,6 +3249,7 @@ class ResumenMesVista extends StatelessWidget {
     required this.mesVisualizado,
     required this.mostrarTotalAcumulado,
     required this.onCambiarMes,
+    required this.historialGastos,
   });
 
   String _obtenerClaveMes(DateTime fecha) =>
@@ -3172,21 +3328,36 @@ class ResumenMesVista extends StatelessWidget {
     }
 
     double gastoCocinadasMes = 0.0;
+    final costoLotePorSabor = <String, double>{};
     lotesDelMes.forEach((dia, mapaLotes) {
       mapaLotes.forEach((saborId, fraccion) {
         var saborObj = menuSabores.firstWhere(
           (s) => s.id == saborId,
           orElse: () => menuSabores.first,
         );
-        gastoCocinadasMes += (saborObj.costoLoteCompleto * fraccion);
+        final costo = saborObj.costoLoteCompleto * fraccion;
+        gastoCocinadasMes += costo;
+        costoLotePorSabor[saborObj.nombre] =
+            (costoLotePorSabor[saborObj.nombre] ?? 0) + costo;
       });
     });
+
+    final gastosBilleteraMes = historialGastos
+        .where(
+          (g) =>
+              g.fechaHora.year == mesVisualizado.year &&
+              g.fechaHora.month == mesVisualizado.month,
+        )
+        .fold<double>(0, (suma, gasto) => suma + gasto.monto);
 
     double gastoTotalMes =
         gastoCocinadasMes + gastoInsumosMes + envioAbsorbidoMes;
     double gananciaNetaMes = ventaBrutaMes - gastoTotalMes;
     double margenGananciaPromedio = ventaBrutaMes > 0
         ? (gananciaNetaMes / ventaBrutaMes * 100)
+        : 0.0;
+    final ventasSobreCosto = gastoTotalMes > 0
+        ? ventaBrutaMes / gastoTotalMes * 100
         : 0.0;
     double ticketPromedio = totalTickets > 0
         ? (ventaBrutaMes / totalTickets)
@@ -3265,7 +3436,7 @@ class ResumenMesVista extends StatelessWidget {
 
     final fechaCorte = DateTime.now();
     final desdeUltimos60 = fechaCorte.subtract(const Duration(days: 60));
-    final diasVenta60 = <String>{};
+    final diasVenta60 = <String, DateTime>{};
     final ventasSabor60 = <String, int>{};
     for (final ventas in ventasPorMes.values) {
       for (final venta in ventas) {
@@ -3273,7 +3444,7 @@ class ResumenMesVista extends StatelessWidget {
             venta.fechaHora.isAfter(fechaCorte)) {
           continue;
         }
-        diasVenta60.add(_obtenerClaveDia(venta.fechaHora));
+        diasVenta60[_obtenerClaveDia(venta.fechaHora)] = venta.fechaHora;
         for (final item in venta.items) {
           final sabor = '${item['sabor'] ?? ''}';
           ventasSabor60[sabor] = (ventasSabor60[sabor] ?? 0) + 1;
@@ -3369,7 +3540,7 @@ class ResumenMesVista extends StatelessWidget {
                           child: Column(
                             children: [
                               const Text(
-                                '💰 Ganancia Neta Limpia Real',
+                                '💰 Resultado estimado del producto',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -3402,7 +3573,7 @@ class ResumenMesVista extends StatelessWidget {
                                     color: Colors.white,
                                   ),
                                   _MiniDatoFinanciero(
-                                    label: 'Gasto Total',
+                                    label: 'Costo registrado',
                                     value: mostrarTotalAcumulado
                                         ? '\$${gastoTotalMes.toStringAsFixed(0)}'
                                         : '• • •',
@@ -3414,6 +3585,27 @@ class ResumenMesVista extends StatelessWidget {
                                     color: Colors.cyan,
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                mostrarTotalAcumulado
+                                    ? 'Ventas / costo registrado: ${ventasSobreCosto.toStringAsFixed(1)}%  ·  Gastos en Billetera aparte: \$${gastosBilleteraMes.toStringAsFixed(0)}'
+                                    : 'Ventas / costo registrado: • • •  ·  Gastos en Billetera aparte: • • •',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.cyanAccent,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'El porcentaje compara ventas con costo de lotes, insumos por vaso y envío absorbido. Billetera se muestra aparte para evitar contar dos veces compras ya incluidas en esos costos.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 10,
+                                ),
                               ),
                             ],
                           ),
@@ -3443,7 +3635,7 @@ class ResumenMesVista extends StatelessWidget {
                           Expanded(
                             child: _CardEstadisticaSimple(
                               icon: Icons.percent,
-                              label: 'Margen Neta',
+                              label: 'Margen estimado sobre venta',
                               value: mostrarTotalAcumulado
                                   ? '${margenGananciaPromedio.toStringAsFixed(1)}%'
                                   : '• • •',
@@ -3462,6 +3654,17 @@ class ResumenMesVista extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'El margen mostrado resta costos de producción registrados, insumos por vaso y envío absorbido; no suma por separado los egresos de Billetera.',
+                        style: TextStyle(color: Colors.white54, fontSize: 10),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'El resultado resta el costo de todos los lotes cocinados del mes. Como no se registra el producto que queda, este cálculo no separa lo conservado de lo que se desperdició.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white54, fontSize: 10),
                       ),
                       const SizedBox(height: 20),
                       const Text(
@@ -3501,17 +3704,20 @@ class ResumenMesVista extends StatelessWidget {
                       Text(
                         diasVenta60.isEmpty
                             ? 'Aún no hay ventas suficientes para sugerir cantidades.'
-                            : 'Promedio por sabor en ${diasVenta60.length} días con ventas; la recomendación se redondea hacia arriba.',
+                            : 'Promedio por sabor en sus días de venta programados; solo cuenta días en que el puesto tuvo ventas. La recomendación se redondea hacia arriba.',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
                         ),
                       ),
                       ...menuSabores.map((sabor) {
-                        final promedio = diasVenta60.isEmpty
+                        final diasOperativos = diasVenta60.values
+                            .where((d) => sabor.diasVenta.contains(d.weekday))
+                            .length;
+                        final promedio = diasOperativos == 0
                             ? 0.0
                             : (ventasSabor60[sabor.nombre] ?? 0) /
-                                  diasVenta60.length;
+                                  diasOperativos;
                         return ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
@@ -3521,7 +3727,7 @@ class ResumenMesVista extends StatelessWidget {
                           ),
                           title: Text(sabor.nombre),
                           subtitle: Text(
-                            '${promedio.toStringAsFixed(1)} vasos vendidos por día',
+                            '${promedio.toStringAsFixed(1)} vasos por día de venta · ${sabor.diasVenta.map(Fechas.nombreDiaSemana).join(', ')}',
                           ),
                           trailing: Text(
                             '${promedio.ceil()} vasos',
@@ -3564,7 +3770,7 @@ class ResumenMesVista extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        '🍿 Desglose de Vasos (Equivalente Mediano / Factor 1.66):',
+                        '🍿 Ventas y costo de lotes por sabor:',
                         style: TextStyle(
                           color: Colors.cyan,
                           fontWeight: FontWeight.bold,
@@ -3579,16 +3785,16 @@ class ResumenMesVista extends StatelessWidget {
                         double totalVasosEquivalentes =
                             totalMed + equivalenciaGrandesEnMedianos;
 
-                        double margenMediano = sabor.precioMediano > 0
-                            ? ((sabor.precioMediano -
-                                          sabor.costoInsumosMediano) /
-                                      sabor.precioMediano) *
-                                  100
+                        final costoCocinado =
+                            costoLotePorSabor[sabor.nombre] ?? 0;
+                        final ventasSabor =
+                            ventaBrutaPorSabor[sabor.nombre] ?? 0;
+                        final retornoLote = costoCocinado > 0
+                            ? ventasSabor / costoCocinado * 100
                             : 0.0;
-                        double gananciaPesosMediano =
-                            sabor.precioMediano - sabor.costoInsumosMediano;
-                        double gananciaPesosGrande =
-                            sabor.precioGrande - sabor.costoInsumosGrande;
+                        final insumosVendidos =
+                            totalMed * sabor.costoInsumosMediano +
+                            totalGde * sabor.costoInsumosGrande;
 
                         return Card(
                           color: const Color(0xFF1E293B),
@@ -3635,39 +3841,21 @@ class ResumenMesVista extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 const Divider(color: Colors.white10),
                                 const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Medianos: $totalMed | Grandes: $totalGde',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Margen Med: ${margenMediano.toStringAsFixed(0)}%',
-                                      style: const TextStyle(
-                                        color: Colors.greenAccent,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  'Ventas: \$${ventasSabor.toStringAsFixed(0)}  ·  Costo de lotes cocinados: \$${costoCocinado.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
                                 ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Ganancia neta/vaso: Med: \$${gananciaPesosMediano.toStringAsFixed(1)} | Gde: \$${gananciaPesosGrande.toStringAsFixed(1)}',
-                                      style: const TextStyle(
-                                        color: Colors.amberAccent,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  costoCocinado > 0
+                                      ? 'Ventas / costo de lote: ${retornoLote.toStringAsFixed(1)}%  ·  Saldo antes de otros gastos: \$${(ventasSabor - costoCocinado - insumosVendidos).toStringAsFixed(0)}'
+                                      : 'Sin costo de lote registrado este mes',
+                                  style: const TextStyle(
+                                    color: Colors.cyanAccent,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),
@@ -4086,6 +4274,7 @@ class PedidosDomicilioVista extends StatefulWidget {
   final Map<String, String> plantillasMensajes;
   final ValueChanged<PedidoDomicilio> onGuardarPedido;
   final ValueChanged<PedidoDomicilio> onMarcarEnCamino;
+  final ValueChanged<PedidoDomicilio> onBorrarPedido;
   const PedidosDomicilioVista({
     super.key,
     required this.menuSabores,
@@ -4096,6 +4285,7 @@ class PedidosDomicilioVista extends StatefulWidget {
     required this.plantillasMensajes,
     required this.onGuardarPedido,
     required this.onMarcarEnCamino,
+    required this.onBorrarPedido,
   });
   @override
   State<PedidosDomicilioVista> createState() => _PedidosDomicilioVistaState();
@@ -4433,6 +4623,53 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
     }
   }
 
+  Future<void> _borrarPedido(PedidoDomicilio p) async {
+    final primera = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('¿Borrar pedido?'),
+        content: Text('Se eliminará el pedido de ${p.cliente.nombre}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('VOLVER'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('CONTINUAR'),
+          ),
+        ],
+      ),
+    );
+    if (primera != true || !mounted) return;
+    final segunda = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Confirma el borrado'),
+        content: Text(
+          p.estado == 'En camino'
+              ? 'Si se puede identificar sin ambigüedad, también se quitará del total la venta vinculada de \$${p.total.toStringAsFixed(0)}. Esta acción no se puede deshacer.'
+              : 'Esta acción no se puede deshacer. Si se canceló en la vida real, usa “Cancelar pedido” para conservar el registro.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('NO BORRAR'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('SÍ, BORRAR DEFINITIVAMENTE'),
+          ),
+        ],
+      ),
+    );
+    if (segunda == true) widget.onBorrarPedido(p);
+  }
+
   Future<void> _confirmar(PedidoDomicilio p) async {
     final abierto = await _abrirWhatsApp(
       p.cliente.telefono,
@@ -4500,11 +4737,10 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
         if (porEstado != 0) return porEstado;
         return b.fechaHora.compareTo(a.fechaHora);
       });
+    final cancelados = widget.pedidos
+        .where((p) => p.estado == 'Cancelado')
+        .length;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('🛵 Pedidos a domicilio'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.cyan,
         foregroundColor: Colors.black,
@@ -4515,6 +4751,27 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '🛵 Pedidos a domicilio',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.cyanAccent,
+                    ),
+                  ),
+                ),
+                Chip(
+                  label: Text('Cancelados: $cancelados'),
+                  avatar: const Icon(Icons.cancel_outlined, size: 16),
+                ),
+              ],
+            ),
+          ),
           Card(
             color: const Color(0xFF1E293B),
             child: Padding(
@@ -4553,7 +4810,7 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
               padding: EdgeInsets.all(28),
               child: Center(
                 child: Text(
-                  'No hay pedidos pendientes.',
+                  'No hay pedidos registrados.',
                   style: TextStyle(color: Colors.white70),
                 ),
               ),
@@ -4652,6 +4909,18 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
                             onPressed: () => _faltantes(p),
                             child: const Text('FALTANTE'),
                           ),
+                        TextButton.icon(
+                          onPressed: () => _borrarPedido(p),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 17,
+                            color: Colors.redAccent,
+                          ),
+                          label: const Text(
+                            'BORRAR',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
+                        ),
                         if (p.estado == 'Pendiente')
                           ElevatedButton(
                             onPressed: () => _confirmar(p),
@@ -5500,6 +5769,8 @@ class AjustesVista extends StatelessWidget {
   final double costoEnvioDefault;
   final String telefonoRepartidor;
   final Map<String, String> plantillasMensajes;
+  final bool mostrarBilletera;
+  final ValueChanged<bool> onCambiarMostrarBilletera;
   final ValueChanged<Map<String, String>> onGuardarPlantillas;
   final ValueChanged<double> onCambiarNivelMostrador;
   final ValueChanged<double> onCambiarNivelTotal;
@@ -5521,6 +5792,8 @@ class AjustesVista extends StatelessWidget {
     required this.costoEnvioDefault,
     required this.telefonoRepartidor,
     required this.plantillasMensajes,
+    required this.mostrarBilletera,
+    required this.onCambiarMostrarBilletera,
     required this.onGuardarPlantillas,
     required this.onCambiarNivelMostrador,
     required this.onCambiarNivelTotal,
@@ -5616,6 +5889,22 @@ class AjustesVista extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            color: const Color(0xFF1E293B),
+            child: SwitchListTile(
+              secondary: const Icon(
+                Icons.account_balance_wallet,
+                color: Colors.cyanAccent,
+              ),
+              title: const Text('Mostrar Billetera en la barra inferior'),
+              subtitle: const Text(
+                'Al ocultarla se conservan sus gastos y saldo.',
+              ),
+              value: mostrarBilletera,
+              onChanged: onCambiarMostrarBilletera,
+            ),
+          ),
+          const SizedBox(height: 12),
           const Text(
             '🛵 Ajustes de Domicilio:',
             style: TextStyle(
@@ -5844,7 +6133,7 @@ class AjustesVista extends StatelessWidget {
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'Venta: M \$${sabor.precioMediano.toStringAsFixed(0)} | G \$${sabor.precioGrande.toStringAsFixed(0)}\nOlla (1.0): \$${sabor.costoLoteCompleto.toStringAsFixed(0)} | Insumo: M \$${sabor.costoInsumosMediano} | G \$${sabor.costoInsumosGrande}',
+                    'Venta: M \$${sabor.precioMediano.toStringAsFixed(0)} | G \$${sabor.precioGrande.toStringAsFixed(0)}\nOlla (1.0): \$${sabor.costoLoteCompleto.toStringAsFixed(0)} | Insumo: M \$${sabor.costoInsumosMediano} | G \$${sabor.costoInsumosGrande}\nDías: ${sabor.diasVenta.map(Fechas.nombreDiaSemana).join(', ')}',
                     style: const TextStyle(color: Colors.cyan, fontSize: 12),
                   ),
                 ),
@@ -6014,6 +6303,7 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
   late bool llevaQuesos;
   late bool llevaLimon;
   late bool llevaHuesito;
+  late List<int> diasVenta;
 
   @override
   void initState() {
@@ -6040,6 +6330,25 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
     llevaQuesos = widget.sabor?.llevaQuesos ?? false;
     llevaLimon = widget.sabor?.llevaLimon ?? true;
     llevaHuesito = widget.sabor?.llevaHuesito ?? false;
+    final n = (widget.sabor?.nombre ?? '').toLowerCase();
+    diasVenta = List<int>.from(
+      widget.sabor?.diasVenta ??
+          (n.contains('tuétano') || n.contains('tuetano')
+              ? const [5, 6, 7]
+              : const [1, 2, 3, 4, 5, 6, 7]),
+    );
+  }
+
+  @override
+  void dispose() {
+    nombreCtrl.dispose();
+    emojiCtrl.dispose();
+    pMedianoCtrl.dispose();
+    pGrandeCtrl.dispose();
+    costoLoteCtrl.dispose();
+    cInsumoMedCtrl.dispose();
+    cInsumoGdeCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -6108,6 +6417,40 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
                 labelStyle: TextStyle(color: Colors.amberAccent),
               ),
               style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Días en que vendes este sabor:',
+              style: TextStyle(color: Colors.cyanAccent),
+            ),
+            Wrap(
+              spacing: 4,
+              children:
+                  const [
+                        (1, 'Lun'),
+                        (2, 'Mar'),
+                        (3, 'Mié'),
+                        (4, 'Jue'),
+                        (5, 'Vie'),
+                        (6, 'Sáb'),
+                        (7, 'Dom'),
+                      ]
+                      .map(
+                        (dia) => FilterChip(
+                          label: Text(dia.$2),
+                          selected: diasVenta.contains(dia.$1),
+                          onSelected: (seleccionado) => setState(() {
+                            if (seleccionado) {
+                              if (!diasVenta.contains(dia.$1))
+                                diasVenta.add(dia.$1);
+                            } else {
+                              diasVenta.remove(dia.$1);
+                            }
+                            diasVenta.sort();
+                          }),
+                        ),
+                      )
+                      .toList(),
             ),
             Row(
               children: [
@@ -6221,6 +6564,7 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
                 llevaQuesos: llevaQuesos,
                 llevaLimon: llevaLimon,
                 llevaHuesito: llevaHuesito,
+                diasVenta: diasVenta,
               ),
             );
             Navigator.pop(context);
@@ -6274,14 +6618,16 @@ class _BotonPopState extends State<_BotonPop> {
       child: AnimatedScale(
         scale: _scale,
         duration: const Duration(milliseconds: 100),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
           decoration: BoxDecoration(
-            color: widget.color.withValues(alpha: 0.2),
+            color: widget.color.withValues(alpha: _scale < 1 ? 0.55 : 0.22),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: widget.color, width: 1.5),
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 widget.label,
