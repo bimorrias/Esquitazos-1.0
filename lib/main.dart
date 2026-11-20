@@ -9,10 +9,22 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  const url = String.fromEnvironment('SUPABASE_URL');
+  const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  if (url.isNotEmpty && key.isNotEmpty) {
+    await Supabase.initialize(url: url, publishableKey: key);
+  }
   runApp(const EsquitazosApp());
 }
+
+bool get supabaseConfigurado =>
+    const String.fromEnvironment('SUPABASE_URL').isNotEmpty &&
+    const String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY').isNotEmpty;
+
 
 class EsquitazosApp extends StatelessWidget {
   const EsquitazosApp({super.key});
@@ -131,7 +143,7 @@ class SaborInfo {
     'id': id,
     'nombre': nombre,
     'emoji': emoji,
-    'color': color.value, // Retenemos .value por compatibilidad universal
+    'color': color.toARGB32(),
     'precioMediano': precioMediano,
     'precioGrande': precioGrande,
     'costoLoteCompleto': costoLoteCompleto,
@@ -256,6 +268,7 @@ class GastoRegistrado {
 
 class ClienteDomicilio {
   final String telefono, nombre, calle, numero, colonia, referencias;
+  final double? latitud, longitud;
   const ClienteDomicilio({
     required this.telefono,
     required this.nombre,
@@ -263,6 +276,8 @@ class ClienteDomicilio {
     required this.numero,
     required this.colonia,
     required this.referencias,
+    this.latitud,
+    this.longitud,
   });
   Map<String, dynamic> toJson() => {
     'telefono': telefono,
@@ -271,6 +286,8 @@ class ClienteDomicilio {
     'numero': numero,
     'colonia': colonia,
     'referencias': referencias,
+    'latitud': latitud,
+    'longitud': longitud,
   };
   factory ClienteDomicilio.fromJson(Map<String, dynamic> j) => ClienteDomicilio(
     telefono: '${j['telefono'] ?? ''}',
@@ -279,6 +296,8 @@ class ClienteDomicilio {
     numero: '${j['numero'] ?? ''}',
     colonia: '${j['colonia'] ?? ''}',
     referencias: '${j['referencias'] ?? ''}',
+    latitud: (j['latitud'] as num?)?.toDouble(),
+    longitud: (j['longitud'] as num?)?.toDouble(),
   );
 }
 
@@ -1271,8 +1290,229 @@ class CajaYDomicilioVista extends StatelessWidget {
         ),
       ),
       body: TabBarView(children: [puesto, domicilio]),
+      bottomNavigationBar: const DisponibilidadPanel(),
     ),
   );
+}
+
+
+// Control compartido en Puesto y Domicilio. La clave publicable NO autoriza escrituras;
+// las políticas RLS del proyecto restringen los cambios al administrador autenticado.
+class DisponibilidadPanel extends StatefulWidget {
+  const DisponibilidadPanel({super.key});
+  @override
+  State<DisponibilidadPanel> createState() => _DisponibilidadPanelState();
+}
+
+class _DisponibilidadPanelState extends State<DisponibilidadPanel> {
+  static const ids = ['espinazo', 'mantequilla', 'tuetano', 'camaron'];
+  static const nombres = ['Espinazo', 'Mantequilla', 'Tuétano', 'Camarón'];
+  final Map<String, bool> disponibles = {for (final id in ids) id: true};
+  bool agotadoTodo = false;
+  bool cargando = false;
+  String? error;
+  Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (supabaseConfigurado) {
+      _consultar();
+      timer = Timer.periodic(const Duration(seconds: 30), (_) => _consultar());
+    }
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _consultar() async {
+    try {
+      final data = await Supabase.instance.client.rpc('consultar_disponibilidad');
+      if (!mounted) return;
+      final mapa = Map<String, dynamic>.from(data as Map);
+      setState(() {
+        agotadoTodo = mapa['agotado_todo'] == true;
+        for (final item in (mapa['productos'] as List? ?? [])) {
+          final producto = Map<String, dynamic>.from(item as Map);
+          if (disponibles.containsKey(producto['id'])) {
+            disponibles[producto['id'] as String] = producto['disponible'] == true;
+          }
+        }
+        error = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => error = 'Sin conexión: $e');
+    }
+  }
+
+  Future<void> _login() async {
+    final correo = TextEditingController();
+    final clave = TextEditingController();
+    final aceptar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Iniciar sesión como administrador'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: correo, decoration: const InputDecoration(labelText: 'Correo electrónico')),
+          TextField(controller: clave, obscureText: true, decoration: const InputDecoration(labelText: 'Contraseña')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ENTRAR')),
+        ],
+      ),
+    );
+    if (aceptar != true) return;
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: correo.text.trim(), password: clave.text,
+      );
+      if (mounted) setState(() => error = null);
+      await _consultar();
+    } catch (e) {
+      if (mounted) setState(() => error = 'No se pudo iniciar sesión: $e');
+    } finally {
+      correo.dispose();
+      clave.dispose();
+    }
+  }
+
+  // La confirmación se solicita antes de cualquier escritura en Supabase.
+  Future<bool> _confirmarCambio({
+    required String titulo,
+    required String mensaje,
+    required String accion,
+    required bool esAgotamiento,
+  }) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(titulo),
+        content: Text(mensaje),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCELAR'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: esAgotamiento ? Colors.deepOrange : Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(accion),
+          ),
+        ],
+      ),
+    );
+    return confirmado == true;
+  }
+
+  Future<void> _confirmarProducto(String id, String nombre) async {
+    if (cargando || !supabaseConfigurado) return;
+    final actualmenteDisponible = disponibles[id] ?? true;
+    final habilitar = !actualmenteDisponible;
+    final confirmado = await _confirmarCambio(
+      titulo: habilitar ? '¿Volver a habilitar $nombre?' : '¿Marcar $nombre como agotado?',
+      mensaje: habilitar
+          ? 'El sabor $nombre volverá a estar disponible para pedidos en la web app.'
+          : 'El sabor $nombre dejará de estar disponible para pedidos en la web app durante el día de hoy.',
+      accion: habilitar ? 'SÍ, HABILITAR' : 'SÍ, AGOTAR',
+      esAgotamiento: !habilitar,
+    );
+    if (!confirmado || !mounted) return;
+    await _cambiarProducto(id, habilitar);
+  }
+
+  Future<void> _confirmarTodo(bool agotado) async {
+    if (cargando || !supabaseConfigurado || agotado == agotadoTodo) return;
+    final confirmado = await _confirmarCambio(
+      titulo: agotado ? '¿Agotar todo por hoy?' : '¿Volver a abrir los pedidos?',
+      mensaje: agotado
+          ? 'Todos los sabores dejarán de estar disponibles para pedidos en la web app durante el día de hoy.'
+          : 'Se quitará el cierre general. Los sabores marcados como agotados individualmente seguirán agotados.',
+      accion: agotado ? 'SÍ, AGOTAR TODO' : 'SÍ, REABRIR',
+      esAgotamiento: agotado,
+    );
+    if (!confirmado || !mounted) return;
+    await _cambiarTodo(agotado);
+  }
+
+  Future<void> _cambiarProducto(String id, bool disponible) async {
+    setState(() => cargando = true);
+    try {
+      // La fecha del servidor, no la del dispositivo, es la referencia de negocio.
+      await Supabase.instance.client.rpc('actualizar_producto_hoy', params: {
+        'p_id': id, 'p_disponible': disponible,
+      });
+      await _consultar();
+    } catch (e) {
+      if (mounted) setState(() => error = 'No se pudo actualizar: $e');
+    } finally {
+      if (mounted) setState(() => cargando = false);
+    }
+  }
+
+  Future<void> _cambiarTodo(bool agotado) async {
+    setState(() => cargando = true);
+    try {
+      await Supabase.instance.client.rpc('actualizar_agotado_todo_hoy', params: {
+        'p_agotado': agotado,
+      });
+      await _consultar();
+    } catch (e) {
+      if (mounted) setState(() => error = 'No se pudo actualizar: $e');
+    } finally {
+      if (mounted) setState(() => cargando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final autorizado = supabaseConfigurado && Supabase.instance.client.auth.currentUser != null;
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 310),
+      color: const Color(0xFF1E293B),
+      child: SingleChildScrollView(
+        child: ExpansionTile(
+          title: const Text('🌽 Marcar agotados', style: TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: const Text('Puesto y Domicilio · mismo estado', style: TextStyle(fontSize: 11)),
+          childrenPadding: const EdgeInsets.all(12),
+          children: [
+            if (!supabaseConfigurado)
+              const Text('Configura SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY para activar la sincronización.'),
+            if (supabaseConfigurado && !autorizado)
+              FilledButton(onPressed: _login, child: const Text('INICIAR SESIÓN ADMINISTRADOR')),
+            if (autorizado) ...[
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (var i = 0; i < ids.length; i++)
+                  OutlinedButton.icon(
+                    onPressed: cargando ? null : () => _confirmarProducto(ids[i], nombres[i]),
+                    icon: Icon(disponibles[ids[i]] == true ? Icons.check_circle : Icons.cancel,
+                      color: disponibles[ids[i]] == true ? Colors.greenAccent : Colors.redAccent),
+                    label: Text('${nombres[i]}: ${disponibles[ids[i]] == true ? 'Disponible' : 'Agotado'}'),
+                  ),
+              ]),
+              SwitchListTile(
+                title: const Text('Agotado todo por hoy'),
+                value: agotadoTodo,
+                onChanged: cargando ? null : _confirmarTodo,
+              ),
+              TextButton(onPressed: cargando ? null : _consultar, child: const Text('ACTUALIZAR ESTADO')),
+              TextButton(onPressed: () async {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) setState(() {});
+              }, child: const Text('CERRAR SESIÓN')),
+            ],
+            if (error != null) Text(error!, style: const TextStyle(color: Colors.redAccent)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class CajaRapidaVista extends StatefulWidget {
@@ -4342,6 +4582,9 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
   }
 
   String _maps(ClienteDomicilio c) {
+    if (c.latitud != null && c.longitud != null) {
+      return 'https://www.google.com/maps?q=${c.latitud},${c.longitud}';
+    }
     final q = '${c.calle}, ${c.colonia}, San Luis de la Paz, Guanajuato';
     return 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(q)}';
   }
@@ -4417,8 +4660,9 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
 
     final nombre = campo('Nombre'), tel = campo('Teléfono');
     final dir = campo('Dirección');
-    if (nombre.isEmpty || tel.isEmpty || dir.isEmpty)
+    if (nombre.isEmpty || tel.isEmpty || dir.isEmpty) {
       throw FormatException('faltan nombre, teléfono o dirección');
+    }
     final partes = dir.split(
       RegExp(r',\s*(?:Col\.?\s*)', caseSensitive: false),
     );
@@ -4432,6 +4676,13 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
     final calle = numMatch == null
         ? calleNumero
         : calleNumero.replaceRange(numMatch.start, numMatch.end, '').trim();
+    // La web envía: *Ubicación de entrega (Google Maps):* https://www.google.com/maps?q=lat,lng
+    final mapaMatch = RegExp(
+      r'https?://(?:www\.)?google\.com/maps\?q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)',
+      caseSensitive: false,
+    ).firstMatch(texto);
+    final latitud = double.tryParse(mapaMatch?.group(1) ?? '');
+    final longitud = double.tryParse(mapaMatch?.group(2) ?? '');
     final refs = campo('Referencias');
     final nota = campo('Nota');
     final items = <Map<String, dynamic>>[];
@@ -4466,10 +4717,11 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
         'detalles': m.group(3)!.trim(),
       });
     }
-    if (items.isEmpty)
+    if (items.isEmpty) {
       throw FormatException(
         'no encontré productos con el formato de la página de pedidos',
       );
+    }
     final subtotalMatch = RegExp(
       r'Subtotal:\s*\$\s*([\d.]+)',
       caseSensitive: false,
@@ -4507,6 +4759,8 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
         numero: numero,
         colonia: colonia,
         referencias: refs,
+        latitud: latitud,
+        longitud: longitud,
       ),
       items: items,
       subtotal: subtotal,
@@ -4865,6 +5119,15 @@ class _PedidosDomicilioVistaState extends State<PedidosDomicilioVista> {
                         fontSize: 11,
                       ),
                     ),
+                    if (p.cliente.latitud != null && p.cliente.longitud != null)
+                      TextButton.icon(
+                        onPressed: () => launchUrl(
+                          Uri.parse(_maps(p.cliente)),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        icon: const Icon(Icons.location_on),
+                        label: const Text('ABRIR UBICACIÓN EXACTA'),
+                      ),
                     if (p.cliente.referencias.isNotEmpty)
                       Text(
                         'Ref: ${p.cliente.referencias}',
@@ -5082,7 +5345,7 @@ class _EditorPedidoDomicilioState extends State<_EditorPedidoDomicilio> {
     if (sabor.llevaQuesos) {
       final quesos = [if (panela) 'Queso Panela', if (molido) 'Queso Molido'];
       resultado =
-          '${nivelMantequilla} (${quesos.isEmpty ? 'Sin queso' : quesos.join(' y ')})';
+          '$nivelMantequilla (${quesos.isEmpty ? 'Sin queso' : quesos.join(' y ')})';
     } else {
       resultado = '$limon, $chile';
       if (sabor.llevaHuesito && tamano == 'Grande' && huesito) {
@@ -5133,8 +5396,9 @@ class _EditorPedidoDomicilioState extends State<_EditorPedidoDomicilio> {
                 textEditingController: tel,
                 focusNode: focoTelefono,
                 optionsBuilder: (TextEditingValue t) {
-                  if (t.text.isEmpty)
+                  if (t.text.isEmpty) {
                     return const Iterable<ClienteDomicilio>.empty();
+                  }
                   final q = t.text.replaceAll(RegExp(r'\D'), '');
                   if (q.length < 4) {
                     return const Iterable<ClienteDomicilio>.empty();
@@ -5484,6 +5748,8 @@ class _EditorPedidoDomicilioState extends State<_EditorPedidoDomicilio> {
       numero: numero.text.trim(),
       colonia: colonia.text.trim(),
       referencias: refs.text.trim(),
+      latitud: widget.inicial?.cliente.latitud,
+      longitud: widget.inicial?.cliente.longitud,
     );
     Navigator.pop(
       context,
@@ -6441,8 +6707,9 @@ class _DialogoEditarSaborState extends State<_DialogoEditarSabor> {
                           selected: diasVenta.contains(dia.$1),
                           onSelected: (seleccionado) => setState(() {
                             if (seleccionado) {
-                              if (!diasVenta.contains(dia.$1))
+                              if (!diasVenta.contains(dia.$1)) {
                                 diasVenta.add(dia.$1);
+                              }
                             } else {
                               diasVenta.remove(dia.$1);
                             }
