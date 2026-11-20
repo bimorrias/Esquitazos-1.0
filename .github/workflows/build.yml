@@ -1,3 +1,4 @@
+
 name: Build Flutter APK
 
 on:
@@ -31,7 +32,10 @@ jobs:
         run: flutter pub get
 
       - name: Build Release APK
-        run: flutter build apk --release
+        run: >
+          flutter build apk --release
+          --dart-define=SUPABASE_URL=https://bwbqpdrwbcuqkgdfuvqf.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_JoLEHsPf3cHv2mN9u3fuzQ_Z6ktl1W3
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
